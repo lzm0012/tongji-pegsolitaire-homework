@@ -1,4 +1,4 @@
-﻿#pragma execution_character_set("utf-8")
+#pragma execution_character_set("utf-8")
 #define _CRT_NON_CONFORMING_SWPRINTFS
 #define _CRT_SECURE_NO_WARNINGS
 #define NOMINMAX
@@ -120,7 +120,6 @@ int Board::getPeg(int x, int y) const { if (y >= 0 && y < height && x >= 0 && x 
 int Board::getWidth() const { return width; }
 int Board::getHeight() const { return height; }
 
-// --- TriangleBoard Implementations ---
 TriangleBoard::TriangleBoard() : Board(5, 5) { initializeBoard(); }
 void TriangleBoard::initializeBoard() {
     for (int y = 0; y < 5; y++)
@@ -266,108 +265,187 @@ Position SquareBoard::boardToScreen(int boardX, int boardY, int offsetX, int off
     int screenY = offsetY + boardY * spacing;
     return Position(screenX, screenY);
 }
-// [MODIFIED] Return type changed to std::unique_ptr<Board>
 std::unique_ptr<Board> SquareBoard::clone() const {
-    // [MODIFIED] Use std::make_unique for safe, modern C++
     return std::make_unique<SquareBoard>(*this);
 }
 
 // --- HexagonBoard Implementations ---
 HexagonBoard::HexagonBoard() : Board(9, 9) { initializeBoard(); }
+
 void HexagonBoard::initializeBoard() {
-    int center = 4;
     for (int y = 0; y < 9; ++y) {
         for (int x = 0; x < 9; ++x) {
             grid[y][x] = -1;
-            if (y >= center - 2 && y <= center + 2) grid[y][x] = 1;
-            if (y == center - 3 || y == center + 3) if (x >= center - 1 && x <= center + 1) grid[y][x] = 1;
-            if (y == center - 4 || y == center + 4) if (x == center) grid[y][x] = 1;
         }
     }
-    grid[center][center] = 0;
+    int validPositions[9][9] = {
+        {-1, -1, -1, -1,  1, -1, -1, -1, -1},  
+        {-1, -1, -1,  1,  1,  1, -1, -1, -1},  
+        {-1, -1,  1,  1,  1,  1,  1, -1, -1},  
+        {-1,  1,  1,  1,  1,  1,  1,  1, -1},  
+        { 1,  1,  1,  1,  0,  1,  1,  1,  1},  
+        {-1,  1,  1,  1,  1,  1,  1,  1, -1},  
+        {-1, -1,  1,  1,  1,  1,  1, -1, -1},  
+        {-1, -1, -1,  1,  1,  1, -1, -1, -1},  
+        {-1, -1, -1, -1,  1, -1, -1, -1, -1}   
+    };
+
+    for (int y = 0; y < 9; ++y) {
+        for (int x = 0; x < 9; ++x) {
+            grid[y][x] = validPositions[y][x];
+        }
+    }
 }
+
 bool HexagonBoard::isValidPosition(int x, int y) const {
     if (x < 0 || y < 0 || x >= width || y >= height) return false;
     return grid[y][x] != -1;
 }
+
 vector<Move> HexagonBoard::getAllPossibleMoves() const {
     vector<Move> moves;
-    for (int y_coord = 0; y_coord < height; y_coord++)
+    for (int y_coord = 0; y_coord < height; y_coord++) {
         for (int x_coord = 0; x_coord < width; x_coord++) {
             if (getPeg(x_coord, y_coord) != 1) continue;
-            int directions[][2] = { {0, 2}, {0, -2}, {2, 0}, {-2, 0}, {2, 2}, {-2, -2}, {2, -2}, {-2, 2} };
+
+            int directions[][2] = {
+                {2, 0}, {-2, 0},    
+                {0, 2}, {0, -2},    
+                {1, 1}, {-1, -1},   
+                {1, -1}, {-1, 1}    
+            };
+
             for (auto& dir : directions) {
-                Move move(x_coord, y_coord, x_coord + dir[0] / 2, y_coord + dir[1] / 2, x_coord + dir[0], y_coord + dir[1]);
+                Move move(x_coord, y_coord,
+                    x_coord + dir[0] / 2, y_coord + dir[1] / 2,
+                    x_coord + dir[0], y_coord + dir[1]);
                 if (Board::isValidMove(move)) moves.push_back(move);
             }
         }
+    }
     return moves;
 }
+
 void HexagonBoard::drawBoard(int offsetX, int offsetY) const {
-    const int R = 18;
-    const int r_spacing = (int)(R * sqrt(3));
-    const int c_spacing = (int)(1.5 * R);
-    for (int y_coord = 0; y_coord < height; y_coord++)
+    const int pegSize = 22;  
+    const int cellSpacing = 55; 
+    setfillcolor(RGB(160, 82, 45));  
+    fillroundrect(offsetX - 50, offsetY - 50, offsetX + 450, offsetY + 450, 20, 20);
+
+    for (int y_coord = 0; y_coord < height; y_coord++) {
         for (int x_coord = 0; x_coord < width; x_coord++) {
             if (!isValidPosition(x_coord, y_coord)) continue;
-            int screenX = offsetX + x_coord * c_spacing;
-            int screenY = offsetY + y_coord * r_spacing + (x_coord % 2) * (r_spacing / 2);
+
+            int screenX = offsetX + x_coord * cellSpacing;
+            int screenY = offsetY + y_coord * cellSpacing;
+
             setfillcolor(RGB(139, 69, 19));
-            fillcircle(screenX, screenY, R + 2);
+            fillcircle(screenX, screenY, pegSize + 3);
+
             if (getPeg(x_coord, y_coord) == 1) {
-                for (int r = R; r >= 0; r -= 1) {
-                    float ratio = (float)r / R;
-                    COLORREF color = RGB((int)(255 * (0.8f + 0.2f * ratio)), (int)(215 * (0.8f + 0.2f * ratio)), 0);
+                for (int r = pegSize; r >= 0; r -= 1) {
+                    float ratio = (float)r / pegSize;
+                    COLORREF color = RGB(
+                        (int)(255 * (0.8f + 0.2f * ratio)),
+                        (int)(215 * (0.8f + 0.2f * ratio)),
+                        0
+                    );
                     setfillcolor(color);
                     fillcircle(screenX, screenY, r);
                 }
                 setfillcolor(RGB(255, 255, 255));
-                fillcircle(screenX - R / 3, screenY - R / 3, R / 5);
+                fillcircle(screenX - pegSize / 3, screenY - pegSize / 3, pegSize / 5);
                 setcolor(RGB(184, 134, 11));
-                circle(screenX, screenY, R);
+                circle(screenX, screenY, pegSize);
             }
             else if (getPeg(x_coord, y_coord) == 0) {
                 setfillcolor(RGB(101, 67, 33));
-                fillcircle(screenX, screenY, R);
+                fillcircle(screenX, screenY, pegSize);
                 setfillcolor(RGB(80, 50, 20));
-                fillcircle(screenX, screenY, R - 2);
+                fillcircle(screenX, screenY, pegSize - 2);
             }
         }
+    }
+
+    setcolor(RGB(101, 67, 33));
+    setlinestyle(PS_SOLID, 2);
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width - 1; x++) {
+            if (isValidPosition(x, y) && isValidPosition(x + 1, y)) {
+                int x1 = offsetX + x * cellSpacing + pegSize;
+                int y1 = offsetY + y * cellSpacing;
+                int x2 = offsetX + (x + 1) * cellSpacing - pegSize;
+                int y2 = y1;
+                line(x1, y1, x2, y2);
+            }
+        }
+    }
+
+    for (int y = 0; y < height - 1; y++) {
+        for (int x = 0; x < width; x++) {
+            if (isValidPosition(x, y) && isValidPosition(x, y + 1)) {
+                int x1 = offsetX + x * cellSpacing;
+                int y1 = offsetY + y * cellSpacing + pegSize;
+                int x2 = x1;
+                int y2 = offsetY + (y + 1) * cellSpacing - pegSize;
+                line(x1, y1, x2, y2);
+            }
+        }
+    }
+    for (int y = 0; y < height - 1; y++) {
+        for (int x = 0; x < width - 1; x++) {
+            if (isValidPosition(x, y) && isValidPosition(x + 1, y + 1)) {
+                int x1 = offsetX + x * cellSpacing + pegSize / 1.4;
+                int y1 = offsetY + y * cellSpacing + pegSize / 1.4;
+                int x2 = offsetX + (x + 1) * cellSpacing - pegSize / 1.4;
+                int y2 = offsetY + (y + 1) * cellSpacing - pegSize / 1.4;
+                line(x1, y1, x2, y2);
+            }
+            if (x + 1 < width && isValidPosition(x + 1, y) && isValidPosition(x, y + 1)) {
+                int x1 = offsetX + (x + 1) * cellSpacing - pegSize / 1.4;
+                int y1 = offsetY + y * cellSpacing + pegSize / 1.4;
+                int x2 = offsetX + x * cellSpacing + pegSize / 1.4;
+                int y2 = offsetY + (y + 1) * cellSpacing - pegSize / 1.4;
+                line(x1, y1, x2, y2);
+            }
+        }
+    }
 }
+
 Position HexagonBoard::screenToBoard(int screenX, int screenY, int offsetX, int offsetY) const {
-    const int R = 18;
-    const int r_spacing = (int)(R * sqrt(3));
-    const int c_spacing = (int)(1.5 * R);
-    for (int y_coord = 0; y_coord < height; y_coord++)
+    const int pegSize = 22;
+    const int cellSpacing = 55;
+
+    for (int y_coord = 0; y_coord < height; y_coord++) {
         for (int x_coord = 0; x_coord < width; x_coord++) {
             if (!isValidPosition(x_coord, y_coord)) continue;
-            int boardScreenX = offsetX + x_coord * c_spacing;
-            int boardScreenY = offsetY + y_coord * r_spacing + (x_coord % 2) * (r_spacing / 2);
-            if (hypot(screenX - boardScreenX, screenY - boardScreenY) <= R + 2)
+
+            int boardScreenX = offsetX + x_coord * cellSpacing;
+            int boardScreenY = offsetY + y_coord * cellSpacing;
+
+            if (hypot(screenX - boardScreenX, screenY - boardScreenY) <= pegSize + 5) {
                 return Position(x_coord, y_coord);
+            }
         }
+    }
     return Position(-1, -1);
 }
+
 Position HexagonBoard::boardToScreen(int boardX, int boardY, int offsetX, int offsetY) const {
     if (!isValidPosition(boardX, boardY)) return Position(-1, -1);
-    const int R = 18;
-    const int r_spacing = (int)(R * sqrt(3));
-    const int c_spacing = (int)(1.5 * R);
-    int screenX = offsetX + boardX * c_spacing;
-    int screenY = offsetY + boardY * r_spacing + (boardX % 2) * (r_spacing / 2);
+
+    const int cellSpacing = 55;
+    int screenX = offsetX + boardX * cellSpacing;
+    int screenY = offsetY + boardY * cellSpacing;
+
     return Position(screenX, screenY);
 }
-// [MODIFIED] Return type changed to std::unique_ptr<Board>
+
 std::unique_ptr<Board> HexagonBoard::clone() const {
-    // [MODIFIED] Use std::make_unique for safe, modern C++
     return std::make_unique<HexagonBoard>(*this);
 }
 
-// ==================================================================
-// ==                    UI 和 游戏逻辑 (UI and Game Logic)         ==
-// ==================================================================
-
-// [ADDED] 添加一个辅助函数来安全地将UTF-8 string转换为wstring，解决乱码问题
 std::wstring StringToWstring(const std::string& str) {
     if (str.empty()) return std::wstring();
     int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
@@ -564,7 +642,6 @@ struct Level {
 class HiQGame {
 private:
     GameState currentState;
-    // [MODIFIED] Use std::unique_ptr for automatic memory management
     std::unique_ptr<Board> currentBoard;
     Position selectedPos;
     vector<Move> highlightedMoves;
@@ -630,8 +707,6 @@ HiQGame::~HiQGame() {
     if (isSolving && solver_instance) {
         solver_instance->stop();
     }
-    // [MODIFIED] The 'delete currentBoard;' line is removed.
-    // The unique_ptr will handle deletion automatically when HiQGame is destroyed.
     UICache::cleanup();
     EndBatchDraw();
     closegraph();
@@ -1078,8 +1153,6 @@ void HiQGame::startAISolving() {
     aiFoundNoSolution = false;
     setupButtons();
     if (currentBoard) {
-        // [MODIFIED] Use .get() to pass the raw pointer to the AISolver.
-        // The HiQGame class still owns the Board via the unique_ptr.
         solver_instance = std::make_shared<AISolver>(currentBoard.get(), 1);
         thread([this]() {
             auto progress_callback = [this](int cur, int max) { this->updateAIProgress(cur, max); };
@@ -1174,10 +1247,7 @@ void HiQGame::handleBoardClick(int screen_x, int screen_y) {
     needsRedraw = true;
 }
 void HiQGame::startNewGame(BoardType type) {
-    // [MODIFIED] 'delete currentBoard;' is no longer needed.
-    // Assigning a new unique_ptr will automatically delete the old object.
     switch (type) {
-        // [MODIFIED] Use std::make_unique to create new board instances
     case TRIANGLE: currentBoard = std::make_unique<TriangleBoard>(); break;
     case SQUARE: currentBoard = std::make_unique<SquareBoard>(); break;
     case HEXAGON: currentBoard = std::make_unique<HexagonBoard>(); break;
@@ -1193,10 +1263,8 @@ void HiQGame::startNewGame(BoardType type) {
 }
 void HiQGame::startLevel(int levelIndex) {
     if (levelIndex < 0 || levelIndex >= (int)levels.size()) return;
-    // [MODIFIED] 'delete currentBoard;' is no longer needed.
     Level& level = levels[levelIndex];
     switch (level.type) {
-        // [MODIFIED] Use std::make_unique to create new board instances
     case TRIANGLE: currentBoard = std::make_unique<TriangleBoard>(); break;
     case SQUARE: currentBoard = std::make_unique<SquareBoard>(); break;
     case HEXAGON: currentBoard = std::make_unique<HexagonBoard>(); break;
